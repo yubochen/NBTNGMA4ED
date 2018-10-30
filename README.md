@@ -42,7 +42,6 @@ coalition  CNN_IP_20030405.1600.01-1 B-1_GPE B-2_Nation O
 air        CNN_IP_20030405.1600.01-1 O       O          B-Conflict_Attack
 
 strikes    CNN_IP_20030405.1600.01-1 O       O          I-Conflict_Attack
-    by      CNN_IP_20030405.1600.01-1     O    O    O
 
 
 
