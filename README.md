@@ -34,7 +34,7 @@ The ACE 2005 dataset can be download from：https://catalog.ldc.upenn.edu/LDC200
 ### Data format
 The training and test data is expected in standard tab-separated format. One word per line, separate column for token and label, empty line between sentences.
 The first column is assumed to be the token and the last column is the label. The second column is the current document ID.The third column is the type of the entity. The fourth column is the entity subtyp of the entity. For example:
- by        CNN_IP_20030405.1600.01-1 O       O          O
+\nby        \tCNN_IP_20030405.1600.01-1 O       O          O
  coalition CNN_IP_20030405.1600.01-1 B-1_GPE B-2_Nation O
  air       CNN_IP_20030405.1600.01-1 O       O          B-Conflict_Attack
  strikes   CNN_IP_20030405.1600.01-1 O       O          I-Conflict_Attack
