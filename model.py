@@ -25,6 +25,7 @@ class Model(object):
         self.num_segs = 14
         self.num_subtypes = 51
         self.seq_nums = 8
+        self.multi_hop=4
 
         self.global_step = tf.Variable(0, trainable = False)
         self.best_dev_f1 = tf.Variable(0.0, trainable = False)
@@ -68,15 +69,21 @@ class Model(object):
         lstm_outputs = tf.nn.dropout(lstm_outputs, self.dropout)
 
         sen_att_outputs = self.attention(lstm_outputs)
+        # sen_att_outputs = self.sentence_memory(lstm_outputs)
 
         doc_att_outputs = self.doc_attention(doc_embedding, lstm_states)
+        # doc_att_outputs = self.doc_memory(doc_embedding,lstm_states)
 
         gat_output = self.gate(sen_att_outputs, doc_att_outputs)
 
         outputs = tf.concat([embedding, gat_output], -1)
         lstm_outputs = self.LSTM_decoder(outputs, self.lstm_dim)
 
-        # lstm_outputs = self.tag_attention(lstm_outputs)
+        lstm_outputs = self.tag_attention(lstm_outputs)
+
+        lstm_outputs = tf.concat([lstm_outputs, embedding], -1)
+        lstm_outputs = self.LSTM_decoder2(lstm_outputs, self.lstm_dim)
+
         self.logits = self.project_layer(lstm_outputs)
 
         self.loss = self.loss_layer(self.logits, self.lengths)
@@ -308,8 +315,8 @@ class Model(object):
             for time_step in range(self.num_steps):
                 if time_step > 0:
                     tf.get_variable_scope().reuse_variables()
-                h_state = tf.concat([h_state, tag_pre], -1)
-                (cell_output, (c_state, h_state)) = lstm_cell(lstm_outputs[:, time_step, :], (c_state, h_state))
+                # h_state = tf.concat([h_state, tag_pre], -1)
+                (cell_output, (c_state, h_state)) = lstm_cell(tf.concat([lstm_outputs[:, time_step, :],tag_pre],-1), (c_state, h_state))
                 tag_pre, tag_result= project(cell_output, lstm_dim)
                 outputs.append(tag_pre)
         outputs = tf.reshape(tf.transpose(outputs, [1,0,2]), [self.batch_size, self.num_steps, self.lstm_dim])
@@ -351,6 +358,43 @@ class Model(object):
             attention_outputs = tf.transpose(fina_outputs, [1, 0, 2])
             output = tf.reshape(attention_outputs, [self.batch_size, sequence_length, hidden_dim])
             return output
+
+    def LSTM_decoder2(self, lstm_outputs, lstm_dim):
+        def project(h_state, lstm_dim):
+            with tf.variable_scope("project_layer2", reuse=tf.AUTO_REUSE):
+                W = tf.get_variable("W",
+                                    shape=[lstm_dim,self.lstm_dim],
+                                    dtype=tf.float32,
+                                    initializer=self.initializer,
+                                    )
+                b = tf.get_variable("b",
+                                    shape=[self.lstm_dim],
+                                    dtype=tf.float32,
+                                    initializer = tf.zeros_initializer()
+                                    )
+                y_pre = tf.add(tf.matmul(h_state, W), b)
+                tag_pre = tf.cast(tf.argmax(tf.nn.softmax(y_pre), axis=-1), tf.float32)
+                return y_pre, tag_pre
+
+        lstm_cell = tf.nn.rnn_cell.BasicLSTMCell(lstm_dim, forget_bias=0.0, state_is_tuple=True)
+        lstm_cell = tf.nn.rnn_cell.DropoutWrapper(lstm_cell, output_keep_prob=self.dropout)
+
+        outputs = []
+        tag_outputs = []
+        init_state = lstm_cell.zero_state(self.batch_size, dtype=tf.float32)
+        c_state, h_state = init_state
+        tag_pre = tf.zeros([self.batch_size, self.lstm_dim])
+
+        with tf.variable_scope("LSTMD2", reuse=tf.AUTO_REUSE):
+            for time_step in range(self.num_steps):
+                if time_step > 0:
+                    tf.get_variable_scope().reuse_variables()
+                # h_state = tf.concat([h_state, tag_pre], -1)
+                (cell_output, (c_state, h_state)) = lstm_cell(tf.concat([lstm_outputs[:, time_step, :],tag_pre],-1), (c_state, h_state))
+                tag_pre, tag_result= project(cell_output, lstm_dim)
+                outputs.append(tag_pre)
+        outputs = tf.reshape(tf.transpose(outputs, [1,0,2]), [self.batch_size, self.num_steps, self.lstm_dim])
+        return outputs
 
 
     def project_layer(self, lstm_outputs, name = None):
